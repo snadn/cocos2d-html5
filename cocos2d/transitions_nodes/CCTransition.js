@@ -556,6 +556,9 @@ cc.TransitionSlideInL = cc.TransitionScene.extend(/** @lends cc.TransitionSlideI
 
         var inAction = this.easeActionWithAction(inA);
         var outAction = cc.Sequence.create(this.easeActionWithAction(outA), cc.CallFunc.create(this.finish, this));
+
+        this._inAction = inAction;
+        this._outAction = outAction;
         this._inScene.runAction(inAction);
         this._outScene.runAction(outAction);
     },
@@ -580,6 +583,12 @@ cc.TransitionSlideInL = cc.TransitionScene.extend(/** @lends cc.TransitionSlideI
      */
     easeActionWithAction:function (action) {
         return cc.EaseOut.create(action, 2.0);
+    },
+
+    finish: function() {
+        this._inScene.stopAction(this._inAction);
+        this._outScene.stopAction(this._outAction);
+        cc.TransitionScene.prototype.finish.call(this);
     }
 });
 

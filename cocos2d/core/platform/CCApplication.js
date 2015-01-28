@@ -180,7 +180,7 @@ cc.setup = function (el, width, height) {
         localCanvas.appendTo(localContainer);
         localConStyle.width = (width || 480) + "px";
         localConStyle.height = (height || 320) + "px";
-        localContainer.setAttribute('id', 'Cocos2dGameContainer');
+        localContainer.setAttribute('id', document['ccConfig'].tagWrap || 'Cocos2dGameContainer');
         localConStyle.margin = "0 auto";
         localCanvas.setAttribute("width", width || 480);
         localCanvas.setAttribute("height", height || 320);

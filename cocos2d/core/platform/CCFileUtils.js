@@ -166,7 +166,11 @@ cc.FileUtils = cc.Class.extend({
 
     _getXMLHttpRequest:function () {
         if (window.XMLHttpRequest) {
-            return new window.XMLHttpRequest();
+            var xhr = new window.XMLHttpRequest();
+            if (!('withCredentials' in xhr) && window.XDomainRequest) {
+                return new window.XDomainRequest();
+            }
+            return xhr;
         } else {
             return new ActiveXObject("MSXML2.XMLHTTP");
         }
@@ -272,19 +276,30 @@ cc.FileUtils = cc.Class.extend({
         xhr.open("GET", fileUrl, true);
         if (/msie/i.test(navigator.userAgent) && !/opera/i.test(navigator.userAgent)) {
             // IE-specific logic here
-            xhr.setRequestHeader("Accept-Charset", "utf-8");
-            xhr.onreadystatechange = function (event) {
-                if (xhr.readyState == 4) {
-                    if (xhr.status == 200) {
-                        var fileContents = xhr.responseText;
-                        if (fileContents)
-                            selfPointer._textFileCache[fileUrl] = fileContents;
+            if (xhr instanceof window.XMLHttpRequest) {
+                xhr.setRequestHeader("Accept-Charset", "utf-8");
+                xhr.onreadystatechange = function (event) {
+                    if (xhr.readyState == 4) {
+                        if (xhr.status == 200) {
+                            var fileContents = xhr.responseText;
+                            if (fileContents)
+                                selfPointer._textFileCache[fileUrl] = fileContents;
+                        } else {
+                            cc.doCallback(selector, target,fileUrl);
+                        }
+                        cc.doCallback(selector, target);
+                    }
+                };
+            } else {
+                xhr.onload = function (e) {
+                    if (xhr.responseText) {
+                        selfPointer._textFileCache[fileUrl] = xhr.responseText;
                     } else {
                         cc.doCallback(selector, target,fileUrl);
                     }
                     cc.doCallback(selector, target);
-                }
-            };
+                };
+            }
         } else {
             if (xhr.overrideMimeType)
                 xhr.overrideMimeType("text\/plain; charset=utf-8");

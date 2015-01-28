@@ -2100,6 +2100,7 @@ cc.Sprite = cc.NodeRGBA.extend(/** @lends cc.Sprite# */{
         flipXOffset *= locEGL_ScaleX;
         flipYOffset *= locEGL_ScaleY;
 
+        var curColor = this.getColor();
         if (this._texture && locTextureCoord.validRect) {
             var image = this._texture.getHtmlElementObj();
             if (this._colorized) {
@@ -2111,10 +2112,9 @@ cc.Sprite = cc.NodeRGBA.extend(/** @lends cc.Sprite# */{
                     locTextureCoord.x, locTextureCoord.y, locTextureCoord.width,  locTextureCoord.height,
                     flipXOffset, flipYOffset, locDrawSizeCanvas.width , locDrawSizeCanvas.height);
             }
-        } else if (locContentSize.width !== 0) {
-            var curColor = this.getColor();
+        } else if (locContentSize._width !== 0 && curColor.a !== 0) {
             context.fillStyle = "rgba(" + curColor.r + "," + curColor.g + "," + curColor.b + ",1)";
-            context.fillRect(flipXOffset, flipYOffset, locContentSize.width * locEGL_ScaleX, locContentSize.height * locEGL_ScaleY);
+            context.fillRect(flipXOffset, flipYOffset, locContentSize._width * locEGL_ScaleX, locContentSize._height * locEGL_ScaleY);
         }
 
         if (cc.SPRITE_DEBUG_DRAW === 1) {

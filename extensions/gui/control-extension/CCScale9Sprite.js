@@ -37,7 +37,7 @@
  *
  * @see http://yannickloriot.com/library/ios/cccontrolextension/Classes/CCScale9Sprite.html
  * @class
- * @extends cc.NodeRGBA
+ * @extends cc.Node
  *
  * @property {cc.Size}  preferredSize   - The preferred size of the 9-slice sprite
  * @property {cc.Rect}  capInsets       - The cap insets of the 9-slice sprite
@@ -46,9 +46,7 @@
  * @property {Number}   insetRight      - The right inset of the 9-slice sprite
  * @property {Number}   insetBottom     - The bottom inset of the 9-slice sprite
  */
-cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
-    RGBAProtocol: true,
-
+cc.Scale9Sprite = cc.Node.extend(/** @lends cc.Scale9Sprite# */{
     _spriteRect: null,
     _capInsetsInternal: null,
     _positionsAreDirty: false,
@@ -64,7 +62,8 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
     _bottom: null,
     _bottomRight: null,
 
-    _colorUnmodified: null,
+    _scale9Dirty: true,
+
     _opacityModifyRGB: false,
 
     _originalSize: null,
@@ -80,8 +79,11 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
     _spritesGenerated: false,
     _spriteFrameRotated: false,
     _textureLoaded:false,
-    _loadedEventListeners: null,
     _className:"Scale9Sprite",
+
+    //v3.3
+    _flippedX: false,
+    _flippedY: false,
 
     /**
      * return  texture is loaded
@@ -95,19 +97,10 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
      * add texture loaded event listener
      * @param {Function} callback
      * @param {Object} target
+     * @deprecated since 3.1, please use addEventListener instead
      */
     addLoadedEventListener:function(callback, target){
-        this._loadedEventListeners.push({eventCallback:callback, eventTarget:target});
-    },
-
-    _callLoadedEventCallbacks:function(){
-        this._textureLoaded = true;
-        var locListeners = this._loadedEventListeners;
-        for(var i = 0, len = locListeners.length;  i < len; i++){
-            var selCallback = locListeners[i];
-            selCallback.eventCallback.call(selCallback.eventTarget, this);
-        }
-        locListeners.length = 0;
+        this.addEventListener("load", callback, target);
     },
 
     _updateCapInset: function () {
@@ -117,11 +110,11 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
             insets = cc.rect(0, 0, 0, 0);
         } else {
             insets = this._spriteFrameRotated ? cc.rect(locInsetBottom, locInsetLeft,
-                locSpriteRect.width - locInsetRight - locInsetLeft,
-                locSpriteRect.height - locInsetTop - locInsetBottom) :
+                    locSpriteRect.width - locInsetRight - locInsetLeft,
+                    locSpriteRect.height - locInsetTop - locInsetBottom) :
                 cc.rect(locInsetLeft, locInsetTop,
-                    locSpriteRect.width - locInsetLeft - locInsetRight,
-                    locSpriteRect.height - locInsetTop - locInsetBottom);
+                        locSpriteRect.width - locInsetLeft - locInsetRight,
+                        locSpriteRect.height - locInsetTop - locInsetBottom);
         }
         this.setCapInsets(insets);
     },
@@ -142,27 +135,30 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
 
         var sizableWidth = size.width - locTopLeftContentSize.width - locTopRight.getContentSize().width;
         var sizableHeight = size.height - locTopLeftContentSize.height - locBottomRight.getContentSize().height;
+
         var horizontalScale = sizableWidth / locCenterContentSize.width;
         var verticalScale = sizableHeight / locCenterContentSize.height;
+
         var rescaledWidth = locCenterContentSize.width * horizontalScale;
         var rescaledHeight = locCenterContentSize.height * verticalScale;
 
         var leftWidth = locBottomLeftContentSize.width;
         var bottomHeight = locBottomLeftContentSize.height;
 
-        if(cc._renderType == cc._RENDER_TYPE_WEBGL){
+        if (cc._renderType == cc._RENDER_TYPE_WEBGL) {
             //browser is in canvas mode, need to manually control rounding to prevent overlapping pixels
             var roundedRescaledWidth = Math.round(rescaledWidth);
-            if(rescaledWidth != roundedRescaledWidth) {
+            if (rescaledWidth != roundedRescaledWidth) {
                 rescaledWidth = roundedRescaledWidth;
-                horizontalScale = rescaledWidth/locCenterContentSize.width;
+                horizontalScale = rescaledWidth / locCenterContentSize.width;
             }
             var roundedRescaledHeight = Math.round(rescaledHeight);
-            if(rescaledHeight != roundedRescaledHeight) {
+            if (rescaledHeight != roundedRescaledHeight) {
                 rescaledHeight = roundedRescaledHeight;
-                verticalScale = rescaledHeight/locCenterContentSize.height;
+                verticalScale = rescaledHeight / locCenterContentSize.height;
             }
         }
+
         locCenter.setScaleX(horizontalScale);
         locCenter.setScaleY(verticalScale);
 
@@ -198,110 +194,112 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
         locCenter.setPosition(leftWidth, bottomHeight);
     },
 
-    ctor: function () {
-        cc.NodeRGBA.prototype.ctor.call(this);
+    /**
+     * Constructor function. override it to extend the construction behavior, remember to call "this._super()" in the extended "ctor" function.
+     * @function
+     * @param {string|cc.SpriteFrame} file file name of texture or a SpriteFrame
+     * @param {cc.Rect} rect
+     * @param {cc.Rect} capInsets
+     * @returns {Scale9Sprite}
+     */
+    ctor: function (file, rect, capInsets) {
+        cc.Node.prototype.ctor.call(this);
         this._spriteRect = cc.rect(0, 0, 0, 0);
         this._capInsetsInternal = cc.rect(0, 0, 0, 0);
 
-        this._colorUnmodified = cc.color(255, 255, 255, 255);
         this._originalSize = cc.size(0, 0);
         this._preferredSize = cc.size(0, 0);
-        this._color = cc.color(255, 255, 255, 255);
-        this._opacity = 255;
         this._capInsets = cc.rect(0, 0, 0, 0);
-        this._loadedEventListeners = [];
+
+        if(file != undefined){
+            if(file instanceof cc.SpriteFrame)
+                this.initWithSpriteFrame(file, rect);
+            else{
+                var frame = cc.spriteFrameCache.getSpriteFrame(file);
+                if(frame != null)
+                    this.initWithSpriteFrame(frame, rect);
+                else
+                    this.initWithFile(file, rect, capInsets);
+            }
+        }else{
+            this.init();
+        }
+    },
+
+    getSprite: function () {
+        return this._scale9Image;
     },
 
     /** Original sprite's size. */
     getOriginalSize: function () {
-        return this._originalSize;
+        return cc.size(this._originalSize);
     },
 
     //if the preferredSize component is given as -1, it is ignored
     getPreferredSize: function () {
-        return this._preferredSize;
+        return cc.size(this._preferredSize);
     },
-	_getPreferredWidth: function () {
-		return this._preferredSize.width;
-	},
-	_getPreferredHeight: function () {
-		return this._preferredSize.height;
-	},
+    _getPreferredWidth: function () {
+        return this._preferredSize.width;
+    },
+    _getPreferredHeight: function () {
+        return this._preferredSize.height;
+    },
     setPreferredSize: function (preferredSize) {
         this.setContentSize(preferredSize);
         this._preferredSize = preferredSize;
+
+        if (this._positionsAreDirty) {
+            this._updatePositions();
+            this._positionsAreDirty = false;
+            this._scale9Dirty = true;
+        }
     },
-	_setPreferredWidth: function (value) {
-		this._setWidth(value);
-		this._preferredSize.width = value;
-	},
-	_setPreferredHeight: function (value) {
-		this._setHeight(value);
-		this._preferredSize.height = value;
-	},
+    _setPreferredWidth: function (value) {
+        this._setWidth(value);
+        this._preferredSize.width = value;
+    },
+    _setPreferredHeight: function (value) {
+        this._setHeight(value);
+        this._preferredSize.height = value;
+    },
 
     /** Opacity: conforms to CCRGBAProtocol protocol */
-    getOpacity: function () {
-        return this._opacity;
-    },
     setOpacity: function (opacity) {
-        if(!this._scale9Image){
+        if(!this._scale9Image)
             return;
-        }
-        this._opacity = opacity;
+        cc.Node.prototype.setOpacity.call(this, opacity);
         var scaleChildren = this._scale9Image.getChildren();
         for (var i = 0; i < scaleChildren.length; i++) {
             var selChild = scaleChildren[i];
-            if (selChild && selChild.RGBAProtocol)
+            if (selChild)
                 selChild.setOpacity(opacity);
         }
-        this._color.a = opacity;
-    },
-
-    updateDisplayedOpacity: function(parentOpacity){
-        cc.NodeRGBA.prototype.updateDisplayedOpacity.call(this, parentOpacity);
-        this.setOpacity(this._displayedOpacity);
+        this._scale9Dirty = true;
     },
 
     /** Color: conforms to CCRGBAProtocol protocol */
-    getColor: function () {
-        var locColor = this._color;
-        return cc.color(locColor.r, locColor.g, locColor.b, locColor.a);
-    },
     setColor: function (color) {
-        if(!this._scale9Image){
+        if(!this._scale9Image)
             return;
-        }
-        var locColor = this._color;
-        locColor.r = color.r;
-        locColor.g = color.g;
-        locColor.b = color.b;
 
+        cc.Node.prototype.setColor.call(this, color);
         var scaleChildren = this._scale9Image.getChildren();
         for (var i = 0; i < scaleChildren.length; i++) {
             var selChild = scaleChildren[i];
-            if (selChild && selChild.RGBAProtocol)
+            if (selChild)
                 selChild.setColor(color);
         }
-
-        if (color.a !== undefined && !color.a_undefined) {
-            this.setOpacity(color.a);
-        }
-    },
-
-    updateDisplayedColor: function(parentColor){
-        cc.NodeRGBA.prototype.updateDisplayedColor.call(this, parentColor);
-        this.setColor(this._displayedColor);
+        this._scale9Dirty = true;
     },
 
     getCapInsets: function () {
-        return this._capInsets;
+        return cc.rect(this._capInsets);
     },
 
     setCapInsets: function (capInsets) {
-        if(!this._scale9Image){
+        if(!this._scale9Image)
             return;
-        }
         //backup the contentSize
         var contentSize = this._contentSize;
         var tempWidth = contentSize.width, tempHeight = contentSize.height;
@@ -384,39 +382,46 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
      * @param {Number} [height] The untransformed size's height of the Scale9Sprite.
      */
     setContentSize: function (size, height) {
-	    cc.Node.prototype.setContentSize.call(this, size, height);
+        cc.Node.prototype.setContentSize.call(this, size, height);
         this._positionsAreDirty = true;
     },
-	_setWidth: function (value) {
-		cc.Node.prototype._setWidth.call(this, value);
-		this._positionsAreDirty = true;
-	},
-	_setHeight: function (value) {
-		cc.Node.prototype._setHeight.call(this, value);
-		this._positionsAreDirty = true;
-	},
 
-    visit: function (ctx) {
-        if (this._positionsAreDirty) {
-            this._updatePositions();
-            this._positionsAreDirty = false;
-        }
-        cc.NodeRGBA.prototype.visit.call(this, ctx);
+    _setWidth: function (value) {
+        cc.Node.prototype._setWidth.call(this, value);
+        this._positionsAreDirty = true;
     },
 
+    _setHeight: function (value) {
+        cc.Node.prototype._setHeight.call(this, value);
+        this._positionsAreDirty = true;
+    },
+
+    /**
+     * Initializes a cc.Scale9Sprite. please do not call this function by yourself, you should pass the parameters to constructor to initialize it.
+     * @returns {boolean}
+     */
     init: function () {
         return this.initWithBatchNode(null, cc.rect(0, 0, 0, 0), false, cc.rect(0, 0, 0, 0));
     },
 
+    /**
+     * Initializes a 9-slice sprite with a SpriteBatchNode.
+     * @param {cc.SpriteBatchNode} batchNode
+     * @param {cc.Rect} rect
+     * @param {boolean|cc.Rect} rotated
+     * @param {cc.Rect} [capInsets]
+     * @returns {boolean}
+     */
     initWithBatchNode: function (batchNode, rect, rotated, capInsets) {
         if (capInsets === undefined) {
             capInsets = rotated;
             rotated = false;
         }
 
-        if (batchNode) {
+        if (batchNode)
             this.updateWithBatchNode(batchNode, rect, rotated, capInsets);
-        }
+        this.setCascadeColorEnabled(true);
+        this.setCascadeOpacityEnabled(true);
         this.setAnchorPoint(0.5, 0.5);
         this._positionsAreDirty = true;
         return true;
@@ -429,11 +434,10 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
      * to resize the sprite will all it's 9-slice goodness intact.
      * It respects the anchorPoint too.
      *
-     * @param file The name of the texture file.
-     * @param rect The rectangle that describes the sub-part of the texture that
-     * is the whole image. If the shape is the whole texture, set this to the
-     * texture's full rect.
-     * @param capInsets The values to use for the cap insets.
+     * @param {String} file The name of the texture file.
+     * @param {cc.Rect} rect The rectangle that describes the sub-part of the texture that
+     * is the whole image. If the shape is the whole texture, set this to the texture's full rect.
+     * @param {cc.Rect} capInsets The values to use for the cap insets.
      */
     initWithFile: function (file, rect, capInsets) {
         if (file instanceof cc.Rect) {
@@ -448,32 +452,34 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
         if(!file)
             throw "cc.Scale9Sprite.initWithFile(): file should be non-null";
 
-        var texture = cc.textureCache.textureForKey(file);
+        var texture = cc.textureCache.getTextureForKey(file);
         if (!texture) {
             texture = cc.textureCache.addImage(file);
-            var locLoaded = texture.isLoaded();
-            this._textureLoaded = locLoaded;
-            if(!locLoaded){
-                texture.addLoadedEventListener(function(sender){
-                    // the texture is rotated on Canvas render mode, so isRotated always is false.
-                    var preferredSize = this._preferredSize;
-                    preferredSize = cc.size(preferredSize.width, preferredSize.height);
-                    var size  = sender.getContentSize();
-                    this.updateWithBatchNode(this._scale9Image, cc.rect(0,0,size.width,size.height), false, this._capInsets);
-                    this.setPreferredSize(preferredSize);
-                    this._positionsAreDirty = true;
-                    this._callLoadedEventCallbacks();
-                }, this);
-            }
         }
-        return this.initWithBatchNode(cc.SpriteBatchNode.create(file, 9), rect, false, capInsets);
+
+        var locLoaded = texture.isLoaded();
+        this._textureLoaded = locLoaded;
+        if(!locLoaded){
+            texture.addEventListener("load", function(sender){
+                // the texture is rotated on Canvas render mode, so isRotated always is false.
+                var preferredSize = this._preferredSize;
+                preferredSize = cc.size(preferredSize.width, preferredSize.height);
+                var size  = sender.getContentSize();
+                this.updateWithBatchNode(this._scale9Image, cc.rect(0,0,size.width,size.height), false, this._capInsets);
+                this.setPreferredSize(preferredSize);
+                this._positionsAreDirty = true;
+                this.dispatchEvent("load");
+            }, this);
+        }
+
+        return this.initWithBatchNode(new cc.SpriteBatchNode(file, 9), rect, false, capInsets);
     },
 
     /**
      * Initializes a 9-slice sprite with an sprite frame and with the specified
      * cap insets.
      * Once the sprite is created, you can then call its "setContentSize:" method
-     * to resize the sprite will all it's 9-slice goodness intract.
+     * to resize the sprite will all it's 9-slice goodness interact.
      * It respects the anchorPoint too.
      *
      * @param spriteFrame The sprite frame object.
@@ -487,17 +493,17 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
         var locLoaded = spriteFrame.textureLoaded();
         this._textureLoaded = locLoaded;
         if(!locLoaded){
-            spriteFrame.addLoadedEventListener(function(sender){
+            spriteFrame.addEventListener("load", function(sender){
                 // the texture is rotated on Canvas render mode, so isRotated always is false.
                 var preferredSize = this._preferredSize;
                 preferredSize = cc.size(preferredSize.width, preferredSize.height);
                 this.updateWithBatchNode(this._scale9Image, sender.getRect(), cc._renderType == cc._RENDER_TYPE_WEBGL && sender.isRotated(), this._capInsets);
                 this.setPreferredSize(preferredSize);
                 this._positionsAreDirty = true;
-                this._callLoadedEventCallbacks();
+                this.dispatchEvent("load");
             },this);
         }
-        var batchNode = cc.SpriteBatchNode.create(spriteFrame.getTexture(), 9);
+        var batchNode = new cc.SpriteBatchNode(spriteFrame.getTexture(), 9);
         // the texture is rotated on Canvas render mode, so isRotated always is false.
         return this.initWithBatchNode(batchNode, spriteFrame.getRect(), cc._renderType == cc._RENDER_TYPE_WEBGL && spriteFrame.isRotated(), capInsets);
     },
@@ -506,7 +512,7 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
      * Initializes a 9-slice sprite with an sprite frame name and with the specified
      * cap insets.
      * Once the sprite is created, you can then call its "setContentSize:" method
-     * to resize the sprite will all it's 9-slice goodness intract.
+     * to resize the sprite will all it's 9-slice goodness interact.
      * It respects the anchorPoint too.
      *
      * @param spriteFrameName The sprite frame name.
@@ -532,26 +538,24 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
      * cap insets of a sprite. In both cases, you get back a new image and the
      * original sprite remains untouched.
      *
-     * @param capInsets The values to use for the cap insets.
+     * @param {cc.Rect} capInsets The values to use for the cap insets.
      */
     resizableSpriteWithCapInsets: function (capInsets) {
         var pReturn = new cc.Scale9Sprite();
-        if (pReturn && pReturn.initWithBatchNode(this._scale9Image, this._spriteRect, false, capInsets)) {
+        if (pReturn && pReturn.initWithBatchNode(this._scale9Image, this._spriteRect, false, capInsets))
             return pReturn;
-        }
         return null;
     },
 
     /** sets the premultipliedAlphaOpacity property.
      If set to NO then opacity will be applied as: glColor(R,G,B,opacity);
-     If set to YES then oapcity will be applied as: glColor(opacity, opacity, opacity, opacity );
+     If set to YES then opacity will be applied as: glColor(opacity, opacity, opacity, opacity );
      Textures with premultiplied alpha will have this property by default on YES. Otherwise the default value is NO
      @since v0.8
      */
     setOpacityModifyRGB: function (value) {
-        if(!this._scale9Image){
+        if(!this._scale9Image)
             return;
-        }
         this._opacityModifyRGB = value;
         var scaleChildren = this._scale9Image.getChildren();
         if (scaleChildren) {
@@ -567,6 +571,14 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
         return this._opacityModifyRGB;
     },
 
+    /**
+     * Update the scale9Sprite with a SpriteBatchNode.
+     * @param {cc.SpriteBatchNode} batchNode
+     * @param {cc.Rect} originalRect
+     * @param {boolean} rotated
+     * @param {cc.Rect} capInsets
+     * @returns {boolean}
+     */
     updateWithBatchNode: function (batchNode, originalRect, rotated, capInsets) {
         var opacity = this.getOpacity();
         var color = this.getColor();
@@ -575,18 +587,21 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
         // Release old sprites
         this.removeAllChildren(true);
 
-        if (this._scale9Image != batchNode){
+        if (this._scale9Image != batchNode)
             this._scale9Image = batchNode;
-        }
+
+        if(!this._scale9Image)
+            return false;
+
         var tmpTexture = batchNode.getTexture();
         var locLoaded = tmpTexture.isLoaded();
         this._textureLoaded = locLoaded;
         if(!locLoaded){
-            tmpTexture.addLoadedEventListener(function(sender){
+            tmpTexture.addEventListener("load", function(sender){
                 this._positionsAreDirty = true;
-                this._callLoadedEventCallbacks();
+                this.dispatchEvent("load");
             },this);
-            return;
+            return true;
         }
         var locScale9Image = this._scale9Image;
         locScale9Image.removeAllChildren(true);
@@ -632,8 +647,7 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
             locCapInsetsInternal.width = capInsets.width;
             locCapInsetsInternal.height = capInsets.height;
         }
-        var w = rect.width;
-        var h = rect.height;
+        var w = rect.width, h = rect.height;
 
         // If there is no specified center region
         if (cc._rectEqualToZero(locCapInsetsInternal)) {
@@ -644,29 +658,24 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
             locCapInsetsInternal.height = h / 3;
         }
 
-        var left_w = locCapInsetsInternal.x;
-        var center_w = locCapInsetsInternal.width;
-        var right_w = w - (left_w + center_w);
+        var left_w = locCapInsetsInternal.x, center_w = locCapInsetsInternal.width, right_w = w - (left_w + center_w);
 
-        var top_h = locCapInsetsInternal.y;
-        var center_h = locCapInsetsInternal.height;
-        var bottom_h = h - (top_h + center_h);
+        var top_h = locCapInsetsInternal.y, center_h = locCapInsetsInternal.height, bottom_h = h - (top_h + center_h);
 
         // calculate rects
         // ... top row
-        var x = 0.0;
-        var y = 0.0;
+        var x = 0.0, y = 0.0;
 
         // top left
-        var lefttopbounds = cc.rect(x, y, left_w, top_h);
+        var lefttopbounds = cc.rect(x + 0.5 | 0, y + 0.5 | 0, left_w + 0.5 | 0, top_h + 0.5 | 0);
 
         // top center
         x += left_w;
-        var centertopbounds = cc.rect(x, y, center_w, top_h);
+        var centertopbounds = cc.rect(x + 0.5 | 0, y + 0.5 | 0, center_w + 0.5 | 0, top_h + 0.5 | 0);
 
         // top right
         x += center_w;
-        var righttopbounds = cc.rect(x, y, right_w, top_h);
+        var righttopbounds = cc.rect(x + 0.5 | 0, y + 0.5 | 0, right_w + 0.5 | 0, top_h + 0.5 | 0);
 
         // ... center row
         x = 0.0;
@@ -674,15 +683,15 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
 
         y += top_h;
         // center left
-        var leftcenterbounds = cc.rect(x, y, left_w, center_h);
+        var leftcenterbounds = cc.rect(x + 0.5 | 0, y + 0.5 | 0, left_w + 0.5 | 0, center_h + 0.5 | 0);
 
         // center center
         x += left_w;
-        var centerbounds = cc.rect(x, y, center_w, center_h);
+        var centerbounds = cc.rect(x + 0.5 | 0, y + 0.5 | 0, center_w + 0.5 | 0, center_h + 0.5 | 0);
 
         // center right
         x += center_w;
-        var rightcenterbounds = cc.rect(x, y, right_w, center_h);
+        var rightcenterbounds = cc.rect(x + 0.5 | 0, y + 0.5 | 0, right_w + 0.5 | 0, center_h + 0.5 | 0);
 
         // ... bottom row
         x = 0.0;
@@ -691,30 +700,30 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
         y += center_h;
 
         // bottom left
-        var leftbottombounds = cc.rect(x, y, left_w, bottom_h);
+        var leftbottombounds = cc.rect(x + 0.5 | 0, y + 0.5 | 0, left_w + 0.5 | 0, bottom_h + 0.5 | 0);
 
         // bottom center
         x += left_w;
-        var centerbottombounds = cc.rect(x, y, center_w, bottom_h);
+        var centerbottombounds = cc.rect(x + 0.5 | 0, y + 0.5 | 0, center_w + 0.5 | 0, bottom_h + 0.5 | 0);
 
         // bottom right
         x += center_w;
-        var rightbottombounds = cc.rect(x, y, right_w, bottom_h);
+        var rightbottombounds = cc.rect(x + 0.5 | 0, y + 0.5 | 0, right_w + 0.5 | 0, bottom_h + 0.5 | 0);
 
-        var t = cc.AffineTransformMakeIdentity();
+        var t = cc.affineTransformMakeIdentity();
         if (!rotated) {
             // CCLog("!rotated");
-            t = cc.AffineTransformTranslate(t, rect.x, rect.y);
+            t = cc.affineTransformTranslate(t, rect.x, rect.y);
 
-            cc._RectApplyAffineTransformIn(centerbounds, t);
-            cc._RectApplyAffineTransformIn(rightbottombounds, t);
-            cc._RectApplyAffineTransformIn(leftbottombounds, t);
-            cc._RectApplyAffineTransformIn(righttopbounds, t);
-            cc._RectApplyAffineTransformIn(lefttopbounds, t);
-            cc._RectApplyAffineTransformIn(rightcenterbounds, t);
-            cc._RectApplyAffineTransformIn(leftcenterbounds, t);
-            cc._RectApplyAffineTransformIn(centerbottombounds, t);
-            cc._RectApplyAffineTransformIn(centertopbounds, t);
+            cc._rectApplyAffineTransformIn(centerbounds, t);
+            cc._rectApplyAffineTransformIn(rightbottombounds, t);
+            cc._rectApplyAffineTransformIn(leftbottombounds, t);
+            cc._rectApplyAffineTransformIn(righttopbounds, t);
+            cc._rectApplyAffineTransformIn(lefttopbounds, t);
+            cc._rectApplyAffineTransformIn(rightcenterbounds, t);
+            cc._rectApplyAffineTransformIn(leftcenterbounds, t);
+            cc._rectApplyAffineTransformIn(centerbottombounds, t);
+            cc._rectApplyAffineTransformIn(centertopbounds, t);
 
             // Centre
             this._centre = new cc.Sprite();
@@ -775,18 +784,18 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
             var rotatedcenterbottombounds = centerbottombounds;
             var rotatedcentertopbounds = centertopbounds;
 
-            t = cc.AffineTransformTranslate(t, rect.height + rect.x, rect.y);
-            t = cc.AffineTransformRotate(t, 1.57079633);
+            t = cc.affineTransformTranslate(t, rect.height + rect.x, rect.y);
+            t = cc.affineTransformRotate(t, 1.57079633);
 
-            centerbounds = cc.RectApplyAffineTransform(centerbounds, t);
-            rightbottombounds = cc.RectApplyAffineTransform(rightbottombounds, t);
-            leftbottombounds = cc.RectApplyAffineTransform(leftbottombounds, t);
-            righttopbounds = cc.RectApplyAffineTransform(righttopbounds, t);
-            lefttopbounds = cc.RectApplyAffineTransform(lefttopbounds, t);
-            rightcenterbounds = cc.RectApplyAffineTransform(rightcenterbounds, t);
-            leftcenterbounds = cc.RectApplyAffineTransform(leftcenterbounds, t);
-            centerbottombounds = cc.RectApplyAffineTransform(centerbottombounds, t);
-            centertopbounds = cc.RectApplyAffineTransform(centertopbounds, t);
+            centerbounds = cc.rectApplyAffineTransform(centerbounds, t);
+            rightbottombounds = cc.rectApplyAffineTransform(rightbottombounds, t);
+            leftbottombounds = cc.rectApplyAffineTransform(leftbottombounds, t);
+            righttopbounds = cc.rectApplyAffineTransform(righttopbounds, t);
+            lefttopbounds = cc.rectApplyAffineTransform(lefttopbounds, t);
+            rightcenterbounds = cc.rectApplyAffineTransform(rightcenterbounds, t);
+            leftcenterbounds = cc.rectApplyAffineTransform(leftcenterbounds, t);
+            centerbottombounds = cc.rectApplyAffineTransform(centerbottombounds, t);
+            centertopbounds = cc.rectApplyAffineTransform(centertopbounds, t);
 
             rotatedcenterbounds.x = centerbounds.x;
             rotatedcenterbounds.y = centerbounds.y;
@@ -861,34 +870,37 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
             locScale9Image.addChild(this._bottomRight, 2, cc.Scale9Sprite.POSITIONS_BOTTOMRIGHT);
         }
 
-        this.setContentSize(rect);
-        this.addChild(locScale9Image);
+        this.setContentSize(rect.width, rect.height);
+        if(cc._renderType === cc._RENDER_TYPE_WEBGL)
+            this.addChild(locScale9Image);
 
         if (this._spritesGenerated) {
             // Restore color and opacity
             this.setOpacity(opacity);
-            if(color.r !== 255 || color.g !== 255 || color.b !== 255){
-                this.setColor(color);
-            }
+            this.setColor(color);
         }
         this._spritesGenerated = true;
         return true;
     },
 
+    /**
+     * set the sprite frame of cc.Scale9Sprite
+     * @param {cc.SpriteFrame} spriteFrame
+     */
     setSpriteFrame: function (spriteFrame) {
-        var batchNode = cc.SpriteBatchNode.create(spriteFrame.getTexture(), 9);
+        var batchNode = new cc.SpriteBatchNode(spriteFrame.getTexture(), 9);
         // the texture is rotated on Canvas render mode, so isRotated always is false.
         var locLoaded = spriteFrame.textureLoaded();
         this._textureLoaded = locLoaded;
         if(!locLoaded){
-            spriteFrame.addLoadedEventListener(function(sender){
+            spriteFrame.addEventListener("load", function(sender){
                 // the texture is rotated on Canvas render mode, so isRotated always is false.
                 var preferredSize = this._preferredSize;
                 preferredSize = cc.size(preferredSize.width, preferredSize.height);
                 this.updateWithBatchNode(this._scale9Image, sender.getRect(), cc._renderType == cc._RENDER_TYPE_WEBGL && sender.isRotated(), this._capInsets);
                 this.setPreferredSize(preferredSize);
                 this._positionsAreDirty = true;
-                this._callLoadedEventCallbacks();
+                this.dispatchEvent("load");
             },this);
         }
         this.updateWithBatchNode(batchNode, spriteFrame.getRect(), cc._renderType == cc._RENDER_TYPE_WEBGL && spriteFrame.isRotated(), cc.rect(0, 0, 0, 0));
@@ -898,10 +910,123 @@ cc.Scale9Sprite = cc.NodeRGBA.extend(/** @lends cc.Scale9Sprite# */{
         this._insetTop = 0;
         this._insetRight = 0;
         this._insetBottom = 0;
+    },
+
+    //v3.3
+    /**
+     * Sets cc.Scale9Sprite's state
+     * @since v3.3
+     * @param {Number} state
+     */
+    setState: function(state){
+        this._renderCmd.setState(state);
+    },
+
+    //setScale9Enabled implement late
+
+    /**
+     * Sets whether the widget should be flipped horizontally or not.
+     * @since v3.3
+     * @param flippedX true if the widget should be flipped horizontally, false otherwise.
+     */
+    setFlippedX: function(flippedX){
+        var realScale = this.getScaleX();
+        this._flippedX = flippedX;
+        this.setScaleX(realScale);
+    },
+
+    /**
+     * <p>
+     * Returns the flag which indicates whether the widget is flipped horizontally or not.                         <br/>
+     *                                                                                                             <br/>
+     * It only flips the texture of the widget, and not the texture of the widget's children.                      <br/>
+     * Also, flipping the texture doesn't alter the anchorPoint.                                                   <br/>
+     * If you want to flip the anchorPoint too, and/or to flip the children too use:                               <br/>
+     * widget->setScaleX(sprite->getScaleX() * -1);                                                                <br/>
+     * </p>
+     * @since v3.3
+     * @return {Boolean} true if the widget is flipped horizontally, false otherwise.
+     */
+    isFlippedX: function(){
+        return this._flippedX;
+    },
+
+    /**
+     * Sets whether the widget should be flipped vertically or not.
+     * @since v3.3
+     * @param flippedY true if the widget should be flipped vertically, false otherwise.
+     */
+    setFlippedY:function(flippedY){
+        var realScale = this.getScaleY();
+        this._flippedY = flippedY;
+        this.setScaleY(realScale);
+    },
+
+    /**
+     * <p>
+     * Return the flag which indicates whether the widget is flipped vertically or not.                             <br/>
+     *                                                                                                              <br/>
+     * It only flips the texture of the widget, and not the texture of the widget's children.                       <br/>
+     * Also, flipping the texture doesn't alter the anchorPoint.                                                    <br/>
+     * If you want to flip the anchorPoint too, and/or to flip the children too use:                                <br/>
+     * widget->setScaleY(widget->getScaleY() * -1);                                                                 <br/>
+     * </p>
+     * @since v3.3
+     * @return {Boolean} true if the widget is flipped vertically, false otherwise.
+     */
+    isFlippedY:function(){
+        return this._flippedY;
+    },
+
+    setScaleX: function (scaleX) {
+        if (this._flippedX)
+            scaleX = scaleX * -1;
+        cc.Node.prototype.setScaleX.call(this, scaleX);
+    },
+
+    setScaleY: function (scaleY) {
+        if (this._flippedY)
+            scaleY = scaleY * -1;
+        cc.Node.prototype.setScaleY.call(this, scaleY);
+    },
+
+    setScale: function (scaleX, scaleY) {
+        if(scaleY === undefined)
+            scaleY = scaleX;
+        this.setScaleX(scaleX);
+        this.setScaleY(scaleY);
+    },
+
+    getScaleX: function () {
+        var originalScale = cc.Node.prototype.getScaleX.call(this);
+        if (this._flippedX)
+            originalScale = originalScale * -1.0;
+        return originalScale;
+    },
+
+    getScaleY: function () {
+        var originalScale = cc.Node.prototype.getScaleY.call(this);
+        if (this._flippedY)
+            originalScale = originalScale * -1.0;
+        return originalScale;
+    },
+
+    getScale: function () {
+        if(this.getScaleX() !== this.getScaleY())
+            cc.log("Scale9Sprite#scale. ScaleX != ScaleY. Don't know which one to return");
+        return this.getScaleX();
+    },
+
+    _createRenderCmd: function(){
+        if(cc._renderType === cc._RENDER_TYPE_CANVAS)
+            return new cc.Scale9Sprite.CanvasRenderCmd(this);
+        else
+            return new cc.Scale9Sprite.WebGLRenderCmd(this);
     }
 });
 
 var _p = cc.Scale9Sprite.prototype;
+cc.EventHelper.prototype.apply(_p);
 
 // Extended properties
 /** @expose */
@@ -928,59 +1053,35 @@ _p = null;
 /**
  * Creates a 9-slice sprite with a texture file, a delimitation zone and
  * with the specified cap insets.
- *
- * @see initWithFile:rect:centerRegion:
+ * @deprecated
+ * @param {String|cc.SpriteFrame} file file name of texture or a cc.Sprite object
+ * @param {cc.Rect} rect the rect of the texture
+ * @param {cc.Rect} capInsets the cap insets of cc.Scale9Sprite
+ * @returns {cc.Scale9Sprite}
  */
 cc.Scale9Sprite.create = function (file, rect, capInsets) {
-    var pReturn;
-    if (arguments.length === 2) {
-        if (typeof(file) == "string") {
-            pReturn = new cc.Scale9Sprite();
-            if (pReturn && pReturn.initWithFile(file, rect)) {
-                return pReturn;
-            }
-        } else if (file instanceof cc.Rect) {
-            pReturn = new cc.Scale9Sprite();
-            if (pReturn && pReturn.initWithFile(file, capInsets)) {
-                return pReturn;
-            }
-        }
-    } else if (arguments.length === 3) {
-        pReturn = new cc.Scale9Sprite();
-        if (pReturn && pReturn.initWithFile(file, rect, capInsets)) {
-            return pReturn;
-        }
-    } else if (arguments.length === 1) {
-        pReturn = new cc.Scale9Sprite();
-        if (pReturn && pReturn.initWithFile(file)) {
-            return pReturn;
-        }
-    } else if (arguments.length === 0) {
-        pReturn = new cc.Scale9Sprite();
-        if (pReturn && pReturn.init()) {
-            return pReturn;
-        }
-    }
-    return null;
+    return new cc.Scale9Sprite(file, rect, capInsets);
 };
 
+/**
+ * @deprecated
+ * @param spriteFrame
+ * @param capInsets
+ * @returns {cc.Scale9Sprite}
+ */
 cc.Scale9Sprite.createWithSpriteFrame = function (spriteFrame, capInsets) {
-    var pReturn = new cc.Scale9Sprite();
-    if (pReturn && pReturn.initWithSpriteFrame(spriteFrame, capInsets)) {
-        return pReturn;
-    }
-    return null;
+    return new cc.Scale9Sprite(spriteFrame, capInsets);
 };
 
+/**
+ * @deprecated
+ * @param spriteFrameName
+ * @param capInsets
+ * @returns {cc.Scale9Sprite}
+ */
 cc.Scale9Sprite.createWithSpriteFrameName = function (spriteFrameName, capInsets) {
-    if(!spriteFrameName)
-        throw "cc.Scale9Sprite.createWithSpriteFrameName(): spriteFrameName should be non-null";
-    var pReturn = new cc.Scale9Sprite();
-    if (pReturn && pReturn.initWithSpriteFrameName(spriteFrameName, capInsets))
-        return pReturn;
-    return null;
+    return new cc.Scale9Sprite(spriteFrameName, capInsets);
 };
-
 
 /**
  * @ignore
@@ -993,3 +1094,6 @@ cc.Scale9Sprite.POSITIONS_BOTTOM = 4;
 cc.Scale9Sprite.POSITIONS_TOPRIGHT = 5;
 cc.Scale9Sprite.POSITIONS_TOPLEFT = 6;
 cc.Scale9Sprite.POSITIONS_BOTTOMRIGHT = 7;
+
+cc.Scale9Sprite.state = {NORMAL: 0, GRAY: 1};
+
